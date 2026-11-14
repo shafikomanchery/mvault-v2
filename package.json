@@ -1,0 +1,27 @@
+{
+  "name": "mvault-v2",
+  "private": true,
+  "version": "0.1.0",
+  "description": "Zero-knowledge synced password manager",
+  "workspaces": [
+    "apps/*",
+    "packages/*",
+    "services/*"
+  ],
+  "scripts": {
+    "build": "npm run build -w @mvault/ports && npm run build -w @mvault/crypto && npm run build -w @mvault/adapter-custom-api && npm run build -w @mvault/adapter-supabase && npm run build -w @mvault/core && npm run build -w @mvault/api",
+    "test": "npm run test --workspaces --if-present",
+    "typecheck": "npm run typecheck --workspaces --if-present",
+    "lint": "npm run lint --workspaces --if-present",
+    "api:dev": "npm run dev -w @mvault/api",
+    "api:migrate": "npm run migrate -w @mvault/api",
+    "mobile:start": "npm run start -w @mvault/mobile"
+  },
+  "engines": {
+    "node": ">=20"
+  },
+  "overrides": {
+    "query-string": "7.1.3"
+  },
+  "license": "MIT"
+}
