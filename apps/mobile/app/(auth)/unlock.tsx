@@ -47,6 +47,9 @@ export default function UnlockScreen() {
           <Text style={styles.secondaryText}>Use biometrics</Text>
         </Pressable>
       )}
+      <Pressable style={styles.link} onPress={() => router.push('/(auth)/unlock-recovery')}>
+        <Text style={styles.linkText}>Forgot master password? Use recovery key</Text>
+      </Pressable>
     </View>
   );
 }
@@ -59,4 +62,6 @@ const styles = StyleSheet.create({
   primaryText: { color: '#fff', textAlign: 'center', fontWeight: '700' },
   secondary: { marginTop: 12, padding: 16, borderRadius: 12, borderWidth: 1, borderColor: '#334155' },
   secondaryText: { color: '#93c5fd', textAlign: 'center' },
+  link: { marginTop: 20, padding: 12, minHeight: 44, justifyContent: 'center' },
+  linkText: { color: '#94a3b8', textAlign: 'center', fontSize: 14 },
 });

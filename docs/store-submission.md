@@ -23,3 +23,6 @@ npx eas-cli submit --profile production --platform ios
 ```
 
 Replace placeholder IDs in `apps/mobile/eas.json` before submit.
+
+Set production API URL via EAS env: `EXPO_PUBLIC_API_URL=https://api.yourdomain.com`.
+Set `JWT_SECRET` (32+ chars) and `NODE_ENV=production` on the API host.

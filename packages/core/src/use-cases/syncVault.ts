@@ -1,6 +1,6 @@
 import { mergeLogins } from '../merge.js';
 import { LoginSchema, type Login } from '../domain/login.js';
-import { SyncConflictError, type VaultSyncPort } from '@mvault/ports';
+import { SyncConflictError, type VaultEnvelope, type VaultSyncPort } from '@mvault/ports';
 import {
   parseStoredVault,
   reencryptLogins,
@@ -38,11 +38,35 @@ export async function pushVaultWithConflictHandling(
     const merged = mergeLogins(localLogins, serverLogins);
     const mergedStored = await reencryptLogins(vaultKey, merged, localStored);
     const mergedSerialized = serializeStoredVault(mergedStored);
-    const envelope = await sync.pushVault(mergedSerialized, err.serverEnvelope.revision);
-    return {
-      serialized: envelope.ciphertext,
-      logins: merged,
-      revision: envelope.revision,
-    };
+    try {
+      const envelope = await sync.pushVault(mergedSerialized, err.serverEnvelope.revision);
+      return {
+        serialized: envelope.ciphertext,
+        logins: merged,
+        revision: envelope.revision,
+      };
+    } catch (retryErr: unknown) {
+      if (retryErr instanceof SyncConflictError) {
+        throw new UnresolvedSyncConflictError(
+          localSerialized,
+          localLogins,
+          retryErr.serverEnvelope
+        );
+      }
+      throw retryErr;
+    }
+  }
+}
+
+export class UnresolvedSyncConflictError extends Error {
+  readonly code = 'UNRESOLVED_SYNC_CONFLICT' as const;
+
+  constructor(
+    public readonly localSerialized: string,
+    public readonly localLogins: Login[],
+    public readonly serverEnvelope: VaultEnvelope
+  ) {
+    super('Sync conflict could not be merged automatically');
+    this.name = 'UnresolvedSyncConflictError';
   }
 }

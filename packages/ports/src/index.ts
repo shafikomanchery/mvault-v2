@@ -12,8 +12,10 @@ export interface AuthPort {
   login(email: string, password: string): Promise<AuthSession>;
   refresh(refreshToken: string): Promise<AuthTokens>;
   logout(refreshToken: string): Promise<void>;
+  deleteAccount(): Promise<void>;
   getAccessToken(): string | null;
   setSession(session: AuthSession | null): void;
+  setSessionChangeHandler(handler: ((session: AuthSession | null) => void) | null): void;
 }
 
 export type VaultEnvelope = {

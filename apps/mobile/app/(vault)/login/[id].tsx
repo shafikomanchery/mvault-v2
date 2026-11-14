@@ -1,7 +1,7 @@
 import { useLocalSearchParams, router } from 'expo-router';
 import { useMemo, useState } from 'react';
 import { Alert, Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
-import * as Clipboard from 'expo-clipboard';
+import { copySensitive } from '@/src/clipboard';
 import { useVault } from '@/src/state/VaultContext';
 
 export default function LoginDetailScreen() {
@@ -50,7 +50,7 @@ export default function LoginDetailScreen() {
       <Text style={styles.label}>{login.name}</Text>
       <Text style={styles.meta}>{login.username}</Text>
       <TextInput style={styles.input} secureTextEntry value={password} onChangeText={setPassword} />
-      <Pressable style={styles.secondary} onPress={() => Clipboard.setStringAsync(password)}>
+      <Pressable style={styles.secondary} onPress={() => void copySensitive(password)} accessibilityLabel="Copy password">
         <Text style={styles.secondaryText}>Copy password</Text>
       </Pressable>
       {login.history.length > 0 && (

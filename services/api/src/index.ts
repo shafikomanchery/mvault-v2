@@ -10,7 +10,18 @@ import {
 
 const port = Number(process.env.PORT ?? 3000);
 const databaseUrl = process.env.DATABASE_URL ?? 'postgresql://mvault:mvault@localhost:5432/mvault';
-const jwtSecret = new TextEncoder().encode(process.env.JWT_SECRET ?? 'dev-secret-change-in-production');
+const jwtSecretRaw = process.env.JWT_SECRET ?? 'dev-secret-change-in-production';
+
+if (process.env.NODE_ENV === 'production') {
+  if (!process.env.JWT_SECRET || process.env.JWT_SECRET.length < 32) {
+    throw new Error('JWT_SECRET must be set to at least 32 characters in production');
+  }
+  if (databaseUrl.includes('mvault:mvault@localhost')) {
+    throw new Error('DATABASE_URL must point to a production database');
+  }
+}
+
+const jwtSecret = new TextEncoder().encode(jwtSecretRaw);
 
 const pool = new pg.Pool({ connectionString: databaseUrl });
 const users = new PgUserRepository(pool);

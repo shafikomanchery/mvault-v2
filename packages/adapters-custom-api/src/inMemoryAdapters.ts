@@ -24,8 +24,16 @@ export class InMemoryAuthAdapter implements AuthPort {
     return { accessToken: 'refreshed', refreshToken };
   }
 
-  async logout(): Promise<void> {
+  async logout(_refreshToken: string): Promise<void> {
     this.session = null;
+  }
+
+  async deleteAccount(): Promise<void> {
+    this.session = null;
+  }
+
+  setSessionChangeHandler(_handler: ((session: AuthSession | null) => void) | null): void {
+    /* no-op */
   }
 
   getAccessToken(): string | null {

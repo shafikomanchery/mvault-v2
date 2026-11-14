@@ -12,10 +12,25 @@ export type CustomApiConfig = {
   baseUrl: string;
 };
 
+type RequestInitExt = RequestInit & { auth?: boolean; _retried?: boolean };
+
 export class CustomApiAuthAdapter implements AuthPort {
   private session: AuthSession | null = null;
+  private sessionChangeHandler: ((session: AuthSession | null) => void) | null = null;
 
   constructor(private readonly config: CustomApiConfig) {}
+
+  setSessionChangeHandler(handler: ((session: AuthSession | null) => void) | null): void {
+    this.sessionChangeHandler = handler;
+  }
+
+  getSession(): AuthSession | null {
+    return this.session;
+  }
+
+  private emitSession() {
+    this.sessionChangeHandler?.(this.session);
+  }
 
   getAccessToken(): string | null {
     return this.session?.accessToken ?? null;
@@ -23,6 +38,7 @@ export class CustomApiAuthAdapter implements AuthPort {
 
   setSession(session: AuthSession | null): void {
     this.session = session;
+    this.emitSession();
   }
 
   async register(email: string, password: string): Promise<AuthSession> {
@@ -31,6 +47,7 @@ export class CustomApiAuthAdapter implements AuthPort {
       { method: 'POST', body: JSON.stringify({ email, password }) }
     );
     this.session = { email: res.email, accessToken: res.accessToken, refreshToken: res.refreshToken };
+    this.emitSession();
     return this.session;
   }
 
@@ -40,6 +57,7 @@ export class CustomApiAuthAdapter implements AuthPort {
       { method: 'POST', body: JSON.stringify({ email, password }) }
     );
     this.session = { email: res.email, accessToken: res.accessToken, refreshToken: res.refreshToken };
+    this.emitSession();
     return this.session;
   }
 
@@ -47,9 +65,11 @@ export class CustomApiAuthAdapter implements AuthPort {
     const res = await this.request<{ accessToken: string; refreshToken: string }>('/auth/refresh', {
       method: 'POST',
       body: JSON.stringify({ refreshToken }),
+      auth: false,
     });
     if (this.session) {
       this.session = { ...this.session, accessToken: res.accessToken, refreshToken: res.refreshToken };
+      this.emitSession();
     }
     return res;
   }
@@ -61,12 +81,32 @@ export class CustomApiAuthAdapter implements AuthPort {
       auth: false,
     });
     this.session = null;
+    this.emitSession();
   }
 
-  private async request<T>(
-    path: string,
-    init: RequestInit & { auth?: boolean }
-  ): Promise<T> {
+  async deleteAccount(): Promise<void> {
+    await this.request('/v1/account', { method: 'DELETE' });
+    this.session = null;
+    this.emitSession();
+  }
+
+  async fetchAuthed(path: string, init: RequestInit, _retried = false): Promise<Response> {
+    const headers: Record<string, string> = {
+      ...(init.headers as Record<string, string>),
+    };
+    const token = this.session?.accessToken;
+    if (!token) throw new AuthError('INVALID_CREDENTIALS', 'Not authenticated');
+    headers.Authorization = `Bearer ${token}`;
+    const res = await fetch(`${this.config.baseUrl}${path}`, { ...init, headers });
+    if (res.status === 401 && this.session?.refreshToken && !_retried) {
+      await this.refresh(this.session.refreshToken);
+      return this.fetchAuthed(path, init, true);
+    }
+    if (res.status === 401) throw new AuthError('INVALID_CREDENTIALS', 'Invalid credentials');
+    return res;
+  }
+
+  private async request<T>(path: string, init: RequestInitExt = {}): Promise<T> {
     const headers: Record<string, string> = {
       'Content-Type': 'application/json',
       ...(init.headers as Record<string, string>),
@@ -76,6 +116,15 @@ export class CustomApiAuthAdapter implements AuthPort {
     }
     try {
       const res = await fetch(`${this.config.baseUrl}${path}`, { ...init, headers });
+      if (
+        res.status === 401 &&
+        init.auth !== false &&
+        this.session?.refreshToken &&
+        !init._retried
+      ) {
+        await this.refresh(this.session.refreshToken);
+        return this.request<T>(path, { ...init, _retried: true });
+      }
       if (res.status === 401) throw new AuthError('INVALID_CREDENTIALS', 'Invalid credentials');
       if (!res.ok) {
         const text = await res.text();
@@ -92,28 +141,21 @@ export class CustomApiAuthAdapter implements AuthPort {
 
 export class CustomApiVaultSyncAdapter implements VaultSyncPort {
   constructor(
-    private readonly config: CustomApiConfig,
+    private readonly _config: CustomApiConfig,
     private readonly auth: CustomApiAuthAdapter
   ) {}
 
   async pullVault(): Promise<VaultEnvelope | null> {
-    const token = this.auth.getAccessToken();
-    if (!token) throw new AuthError('INVALID_CREDENTIALS', 'Not authenticated');
-    const res = await fetch(`${this.config.baseUrl}/v1/vault`, {
-      headers: { Authorization: `Bearer ${token}` },
-    });
+    const res = await this.auth.fetchAuthed('/v1/vault', { method: 'GET' });
     if (res.status === 404) return null;
     if (!res.ok) throw new Error(`pullVault failed: ${res.status}`);
     return (await res.json()) as VaultEnvelope;
   }
 
   async pushVault(ciphertext: string, expectedRevision: number): Promise<VaultEnvelope> {
-    const token = this.auth.getAccessToken();
-    if (!token) throw new AuthError('INVALID_CREDENTIALS', 'Not authenticated');
-    const res = await fetch(`${this.config.baseUrl}/v1/vault`, {
+    const res = await this.auth.fetchAuthed('/v1/vault', {
       method: 'PUT',
       headers: {
-        Authorization: `Bearer ${token}`,
         'Content-Type': 'application/json',
         'If-Match': String(expectedRevision),
       },

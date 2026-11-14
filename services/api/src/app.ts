@@ -16,6 +16,14 @@ export function createApp(deps: {
 }) {
   const app = new Hono<{ Variables: Variables }>();
 
+  app.use('*', async (c, next) => {
+    await next();
+    c.header('X-Content-Type-Options', 'nosniff');
+    c.header('X-Frame-Options', 'DENY');
+    c.header('Referrer-Policy', 'no-referrer');
+    c.header('Permissions-Policy', 'geolocation=()');
+  });
+
   app.post('/auth/register', async (c) => {
     const { email, password } = await c.req.json<{ email: string; password: string }>();
     try {
@@ -58,9 +66,12 @@ export function createApp(deps: {
     const token = header.slice(7);
     try {
       const payload = await deps.auth.verifyAccessToken(token);
+      const user = await deps.users.findById(payload.userId);
+      if (!user) throw new HTTPException(401);
       c.set('userId', payload.userId);
       c.set('email', payload.email);
-    } catch {
+    } catch (e) {
+      if (e instanceof HTTPException) throw e;
       throw new HTTPException(401);
     }
     await next();
@@ -107,6 +118,7 @@ export function createApp(deps: {
   app.delete('/v1/account', async (c) => {
     const userId = c.get('userId') as string;
     await deps.vaults.delete(userId);
+    await deps.auth.logout('', userId);
     await deps.users.deleteById(userId);
     return c.body(null, 204);
   });

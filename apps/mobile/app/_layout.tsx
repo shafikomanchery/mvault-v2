@@ -38,6 +38,9 @@ export default function RootLayout() {
         <Stack.Screen name="(auth)" options={{ headerShown: false }} />
         <Stack.Screen name="(vault)" options={{ headerShown: false }} />
         <Stack.Screen name="settings" options={{ title: 'Settings' }} />
+        <Stack.Screen name="change-master-password" options={{ title: 'Master password' }} />
+        <Stack.Screen name="reset-master-password" options={{ title: 'New master password' }} />
+        <Stack.Screen name="sync-conflict" options={{ title: 'Sync conflict' }} />
       </Stack>
     </VaultProvider>
   );
